@@ -1,0 +1,8 @@
+flask
+google-auth
+google-auth-oauthlib
+google-api-python-client
+anthropic
+python-dotenv
+beautifulsoup4
+lxml
