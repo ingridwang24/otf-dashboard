@@ -5,7 +5,7 @@
 
 ## 1. Executive Summary
 
-We built an AI-powered fitness coaching layer on top of an OrangeTheory Fitness (OTF) beat report dashboard for a regular OTF member. The dashboard pulls workout data directly from Gmail (via Google OAuth + Gmail API), parses both the summary stats and the full treadmill/rower performance data from each email body, visualizes trends across all sessions, and generates natural-language coaching insights and actionable to-dos via Claude — functioning like having a personal trainer review your workout history every week.
+Ingrid built an AI-powered fitness coaching layer on top of an OrangeTheory Fitness (OTF) beat report dashboard for a regular OTF member. The dashboard pulls workout data directly from Gmail (via Google OAuth + Gmail API), parses both the summary stats and the full treadmill/rower performance data from each email body, visualizes trends across all sessions, and generates natural-language coaching insights and actionable to-dos via Claude — functioning like having a personal trainer review your workout history every week.
 
 ---
 
