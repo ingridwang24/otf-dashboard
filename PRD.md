@@ -97,7 +97,7 @@ OTF emails contain rich per-session data (heart rate zones, calories, splat poin
 
 8. **Workout history table** — all sessions, newest first, includes all treadmill/rower fields with — for missing values
 
-### Phase B — AI Fitness Coach Panel
+### AI Fitness Coach Panel ✅ Shipped
 
 - **Endpoint:** `POST /api/coach-insights` — streams response via Server-Sent Events
 - **Model:** claude-sonnet-4-6
@@ -152,7 +152,7 @@ We believe that combining full-email data extraction, equipment-specific analyti
 *As a member, I want to filter the dashboard by time window.*
 
 - [x] Last 30d / 60d / 90d / All Time
-- [x] All charts and table update; PRs always show all-time
+- [x] All charts, stat cards (including Total TM Miles and Total Rower km), and table update; PRs always show all-time
 - [x] Filter persists via localStorage
 
 **Story 4: Trend Indicators** ✅ Shipped
@@ -185,6 +185,12 @@ We believe that combining full-email data extraction, equipment-specific analyti
 - [x] 4 charts: distance, wattage, 500m split, stroke rate
 - [x] Summary stats with totals and averages
 - [x] Collapsible raw data table
+
+**Story 9: Outlier Exclusion** ✅ Shipped
+*As a member, I want to exclude sessions where my heart rate monitor had no battery so they don't skew my data.*
+
+- [x] `EXCLUDED_DATES` array in JS filters specific sessions before any processing
+- [x] Excluded sessions removed from all charts, stat cards, PRs, and coach analysis
 
 ---
 
