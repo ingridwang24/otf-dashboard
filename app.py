@@ -375,6 +375,62 @@ def coach_insights():
     )
 
 
+@app.route("/api/ask-coach", methods=["POST"])
+def ask_coach():
+    try:
+        import anthropic
+    except ImportError:
+        return jsonify({"error": "anthropic package not installed"}), 500
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return jsonify({"error": "ANTHROPIC_API_KEY not set"}), 500
+
+    body = request.get_json(silent=True) or {}
+    workout_data = body.get("workouts", [])
+    question = body.get("question", "").strip()
+    if not workout_data:
+        return jsonify({"error": "No workout data provided"}), 400
+    if not question:
+        return jsonify({"error": "No question provided"}), 400
+
+    system = (
+        "You are an expert OrangeTheory Fitness (OTF) coach reviewing a member's complete workout history. "
+        "OTF context: Splat Points = minutes in Orange (Z4) or Red (Z5) zones. Goal is 12+ splat points per session. "
+        "Heart rate zones: Gray (Z1), Blue (Z2), Green (Z3 base), Orange (Z4 push), Red (Z5 all-out). "
+        "Answer the member's question concisely and specifically, citing actual numbers, dates, and coach names from their data. "
+        "Be direct and actionable. Do not be generic."
+    )
+
+    user_message = (
+        f"Here is my complete OTF workout history (oldest to newest):\n\n"
+        + json.dumps(workout_data, indent=2)
+        + f"\n\nMy question: {question}"
+    )
+
+    client = anthropic.Anthropic(api_key=api_key)
+
+    def generate():
+        try:
+            with client.messages.stream(
+                model="claude-sonnet-4-6",
+                max_tokens=600,
+                system=system,
+                messages=[{"role": "user", "content": user_message}],
+            ) as stream:
+                for text in stream.text_stream:
+                    yield f"data: {json.dumps(text)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps('[ERROR] ' + str(e))}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 if __name__ == "__main__":
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
     app.run(debug=True, port=5002)

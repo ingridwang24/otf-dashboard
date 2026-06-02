@@ -525,6 +525,23 @@ function renderDashboard() {
       </div>
     </div>
 
+    <!-- Ask Your Coach -->
+    <div class="coach-card" style="margin-top:0">
+      <div class="coach-header">
+        <div>
+          <div class="coach-title">Ask Your Coach</div>
+          <div class="coach-subtitle">Ask anything about your workouts — get a personalized answer based on your data</div>
+        </div>
+      </div>
+      <div style="padding:0 24px 16px;display:flex;gap:10px">
+        <input id="coachQuestion" type="text" placeholder="e.g. Which coach brings out my best performance? Am I improving on the rower?"
+          style="flex:1;background:#1a1a1a;border:1px solid #333;border-radius:8px;padding:10px 14px;color:#fff;font-size:14px;outline:none"
+          onkeydown="if(event.key==='Enter')askCoach()" />
+        <button class="btn" onclick="askCoach()" id="askBtn">Ask</button>
+      </div>
+      <div class="coach-body" id="askBody" style="display:none"></div>
+    </div>
+
     <!-- Table -->
     <div class="table-card">
       <div class="table-header">${n} sessions in view · ${sum(allWorkouts, w => w.steps).toLocaleString()} total steps all time</div>
@@ -643,6 +660,26 @@ function calcStreak(ws) {
   return max;
 }
 
+// ── Trendline helper ──────────────────────────────────────────
+function trendDs(values, color) {
+  const n = values.length;
+  if (n < 2) return null;
+  const valid = values.map((v, i) => ({ x: i, y: v })).filter(p => p.y != null);
+  if (valid.length < 2) return null;
+  const mx = valid.reduce((s, p) => s + p.x, 0) / valid.length;
+  const my = valid.reduce((s, p) => s + p.y, 0) / valid.length;
+  const num = valid.reduce((s, p) => s + (p.x - mx) * (p.y - my), 0);
+  const den = valid.reduce((s, p) => s + (p.x - mx) ** 2, 0);
+  const slope = den ? num / den : 0;
+  const intercept = my - slope * mx;
+  const data = Array.from({ length: n }, (_, i) => +(slope * i + intercept).toFixed(1));
+  return {
+    type: "line", label: "Trend", data,
+    borderColor: color, borderDash: [5, 3], borderWidth: 1.5,
+    pointRadius: 0, fill: false, tension: 0, order: 0,
+  };
+}
+
 // ── Charts ────────────────────────────────────────────────────
 function buildCharts(ws) {
   const labels = ws.map(w => w.date.slice(0, 5));
@@ -650,16 +687,22 @@ function buildCharts(ws) {
 
   charts.cal = new Chart(document.getElementById("cCal"), {
     type: "line",
-    data: { labels, datasets: [{ data: ws.map(w => w.calories), borderColor: "#FF6B35", backgroundColor: "rgba(255,107,53,0.07)", fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: "#FF6B35" }] },
+    data: { labels, datasets: [
+      { data: ws.map(w => w.calories), borderColor: "#FF6B35", backgroundColor: "rgba(255,107,53,0.07)", fill: true, tension: 0.35, pointRadius: 3, pointBackgroundColor: "#FF6B35", order: 1 },
+      { ...trendDs(ws.map(w => w.calories), "rgba(255,107,53,0.5)"), label: "Trend" },
+    ].filter(Boolean) },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: axis, y: { ...axis, beginAtZero: false } } },
   });
 
   charts.splat = new Chart(document.getElementById("cSplat"), {
     type: "bar",
-    data: { labels, datasets: [{ data: ws.map(w => w.splat_points), backgroundColor: ws.map(w => w.splat_points >= 12 ? "#FF6B35" : "rgba(255,107,53,0.3)"), borderRadius: 4 }] },
+    data: { labels, datasets: [
+      { type: "bar", data: ws.map(w => w.splat_points), backgroundColor: ws.map(w => w.splat_points >= 12 ? "#FF6B35" : "rgba(255,107,53,0.3)"), borderRadius: 4, order: 1 },
+      { ...trendDs(ws.map(w => w.splat_points), "rgba(255,255,255,0.5)"), label: "Trend" },
+    ].filter(Boolean) },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { afterLabel: ctx => ctx.raw >= 12 ? "✓ Goal reached" : `✗ ${12 - ctx.raw} short` } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { afterLabel: ctx => ctx.dataset.type === "bar" ? (ctx.raw >= 12 ? "✓ Goal reached" : `✗ ${12 - ctx.raw} short`) : "" } } },
       scales: { x: axis, y: { ...axis, beginAtZero: true } },
     },
   });
@@ -667,15 +710,19 @@ function buildCharts(ws) {
   charts.hr = new Chart(document.getElementById("cHR"), {
     type: "line",
     data: { labels, datasets: [
-      { label: "Peak HR", data: ws.map(w => w.peak_hr), borderColor: "#e03131", tension: 0.35, pointRadius: 3, pointBackgroundColor: "#e03131" },
-      { label: "Avg HR",  data: ws.map(w => w.avg_hr),  borderColor: "#FF8C00", tension: 0.35, pointRadius: 3, pointBackgroundColor: "#FF8C00" },
-    ]},
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: "#999", boxWidth: 10, padding: 14 } } }, scales: { x: axis, y: { ...axis, beginAtZero: false } } },
+      { label: "Peak HR", data: ws.map(w => w.peak_hr), borderColor: "#e03131", tension: 0.35, pointRadius: 3, pointBackgroundColor: "#e03131", order: 1 },
+      { label: "Avg HR",  data: ws.map(w => w.avg_hr),  borderColor: "#FF8C00", tension: 0.35, pointRadius: 3, pointBackgroundColor: "#FF8C00", order: 1 },
+      { ...trendDs(ws.map(w => w.avg_hr), "rgba(255,140,0,0.5)"), label: "Avg HR Trend" },
+    ].filter(Boolean) },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: "#999", boxWidth: 10, padding: 14, filter: item => item.text !== "Avg HR Trend" } } }, scales: { x: axis, y: { ...axis, beginAtZero: false } } },
   });
 
   charts.steps = new Chart(document.getElementById("cSteps"), {
     type: "bar",
-    data: { labels, datasets: [{ data: ws.map(w => w.steps), backgroundColor: "rgba(92,133,214,0.55)", borderColor: "#5c85d6", borderWidth: 1, borderRadius: 4 }] },
+    data: { labels, datasets: [
+      { type: "bar", data: ws.map(w => w.steps), backgroundColor: "rgba(92,133,214,0.55)", borderColor: "#5c85d6", borderWidth: 1, borderRadius: 4, order: 1 },
+      { ...trendDs(ws.map(w => w.steps), "rgba(92,133,214,0.7)"), label: "Trend" },
+    ].filter(Boolean) },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: axis, y: { ...axis, beginAtZero: true } } },
   });
 
@@ -731,17 +778,21 @@ function buildCharts(ws) {
 
     charts.tmDist = new Chart(document.getElementById("cTMDist"), {
       type: "bar",
-      data: { labels: tmL, datasets: [{ data: tmWs.map(w => w.treadmill_miles), backgroundColor: "rgba(255,107,53,0.55)", borderColor: "#FF6B35", borderWidth: 1, borderRadius: 4 }] },
+      data: { labels: tmL, datasets: [
+        { type: "bar", data: tmWs.map(w => w.treadmill_miles), backgroundColor: "rgba(255,107,53,0.55)", borderColor: "#FF6B35", borderWidth: 1, borderRadius: 4, order: 1 },
+        { ...trendDs(tmWs.map(w => w.treadmill_miles), "rgba(255,107,53,0.8)"), label: "Trend" },
+      ].filter(Boolean) },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: axis, y: { ...axis, beginAtZero: true } } },
     });
 
     charts.tmSpeed = new Chart(document.getElementById("cTMSpeed"), {
       type: "line",
       data: { labels: tmL, datasets: [
-        { label: "Avg mph", data: tmWs.map(w => w.treadmill_avg_speed), borderColor: "#FF6B35", tension: 0.35, pointRadius: 3, pointBackgroundColor: "#FF6B35" },
-        { label: "Max mph", data: tmWs.map(w => w.treadmill_max_speed), borderColor: "rgba(255,107,53,0.4)", borderDash: [4,3], tension: 0.35, pointRadius: 2 },
-      ]},
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: "#999", boxWidth: 10, padding: 12 } } }, scales: { x: axis, y: { ...axis, beginAtZero: false } } },
+        { label: "Avg mph", data: tmWs.map(w => w.treadmill_avg_speed), borderColor: "#FF6B35", tension: 0.35, pointRadius: 3, pointBackgroundColor: "#FF6B35", order: 1 },
+        { label: "Max mph", data: tmWs.map(w => w.treadmill_max_speed), borderColor: "rgba(255,107,53,0.4)", borderDash: [4,3], tension: 0.35, pointRadius: 2, order: 1 },
+        { ...trendDs(tmWs.map(w => w.treadmill_avg_speed), "rgba(255,107,53,0.6)"), label: "Avg Trend" },
+      ].filter(Boolean) },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: "#999", boxWidth: 10, padding: 12, filter: item => item.text !== "Avg Trend" } } }, scales: { x: axis, y: { ...axis, beginAtZero: false } } },
     });
 
     charts.tmIncline = new Chart(document.getElementById("cTMIncline"), {
@@ -803,17 +854,21 @@ function buildCharts(ws) {
 
     charts.rowDist = new Chart(document.getElementById("cRowDist"), {
       type: "bar",
-      data: { labels: rowL, datasets: [{ data: rowWs.map(w => w.rower_meters), backgroundColor: "rgba(92,133,214,0.55)", borderColor: "#5c85d6", borderWidth: 1, borderRadius: 4 }] },
+      data: { labels: rowL, datasets: [
+        { type: "bar", data: rowWs.map(w => w.rower_meters), backgroundColor: "rgba(92,133,214,0.55)", borderColor: "#5c85d6", borderWidth: 1, borderRadius: 4, order: 1 },
+        { ...trendDs(rowWs.map(w => w.rower_meters), "rgba(92,133,214,0.8)"), label: "Trend" },
+      ].filter(Boolean) },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: axis, y: { ...axis, beginAtZero: true } } },
     });
 
     charts.rowWatt = new Chart(document.getElementById("cRowWatt"), {
       type: "line",
       data: { labels: rowL, datasets: [
-        { label: "Avg W", data: rowWs.map(w => w.rower_avg_wattage), borderColor: "#5c85d6", tension: 0.35, pointRadius: 3, pointBackgroundColor: "#5c85d6" },
-        { label: "Max W", data: rowWs.map(w => w.rower_max_wattage), borderColor: "rgba(92,133,214,0.4)", borderDash: [4,3], tension: 0.35, pointRadius: 2 },
-      ]},
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: "#999", boxWidth: 10, padding: 12 } } }, scales: { x: axis, y: { ...axis, beginAtZero: false } } },
+        { label: "Avg W", data: rowWs.map(w => w.rower_avg_wattage), borderColor: "#5c85d6", tension: 0.35, pointRadius: 3, pointBackgroundColor: "#5c85d6", order: 1 },
+        { label: "Max W", data: rowWs.map(w => w.rower_max_wattage), borderColor: "rgba(92,133,214,0.4)", borderDash: [4,3], tension: 0.35, pointRadius: 2, order: 1 },
+        { ...trendDs(rowWs.map(w => w.rower_avg_wattage), "rgba(92,133,214,0.7)"), label: "Avg Trend" },
+      ].filter(Boolean) },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: { color: "#999", boxWidth: 10, padding: 12, filter: item => item.text !== "Avg Trend" } } }, scales: { x: axis, y: { ...axis, beginAtZero: false } } },
     });
 
     charts.rowSplit = new Chart(document.getElementById("cRowSplit"), {
@@ -946,6 +1001,59 @@ async function getInsights(regenerate) {
   } finally {
     insightBtn.style.display = "none";
     regenBtn.style.display = "";
+  }
+}
+
+async function askCoach() {
+  const input = document.getElementById("coachQuestion");
+  const question = input.value.trim();
+  if (!question) return;
+
+  const askBtn = document.getElementById("askBtn");
+  const body = document.getElementById("askBody");
+
+  askBtn.disabled = true;
+  askBtn.textContent = "…";
+  body.style.display = "";
+  body.innerHTML = `<div class="coach-idle"><div class="spinner" style="width:24px;height:24px;border-width:2px"></div><p>Your coach is thinking…</p></div>`;
+
+  let fullText = "";
+  try {
+    const res = await fetch("/api/ask-coach", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workouts: allWorkouts, question }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Server error");
+    }
+    body.innerHTML = `<div class="coach-text" id="askText"></div>`;
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const payload = line.slice(6);
+        if (payload === "[DONE]") break;
+        try { fullText += JSON.parse(payload); } catch {}
+        const el = document.getElementById("askText");
+        if (el) el.innerHTML = fullText.replace(/\n/g, "<br>") + `<span class="cursor">▋</span>`;
+      }
+    }
+    const el = document.getElementById("askText");
+    if (el) el.innerHTML = fullText.replace(/\n/g, "<br>");
+  } catch (e) {
+    body.innerHTML = `<div class="coach-idle"><p style="color:#e03131">⚠ ${e.message}</p><small>Make sure ANTHROPIC_API_KEY is set when starting the server.</small></div>`;
+  } finally {
+    askBtn.disabled = false;
+    askBtn.textContent = "Ask";
   }
 }
 
